@@ -1,0 +1,148 @@
+name: gh-labeler
+description: >-
+  Declarative GitHub label management with gh-labeler — sync labels from a
+  JSON/YAML config, preview changes, validate configs offline, and gate CI on
+  label drift.
+author: Keisuke Hayashi
+
+branding:
+  icon: tag
+  color: blue
+
+inputs:
+  command:
+    description: >-
+      Subcommand to run: "sync" (apply the config), "plan" (read-only
+      preview), or "validate" (offline config check, no token needed).
+    required: false
+    default: sync
+  repository:
+    description: >-
+      Target repository as owner/repo. Defaults to the repository the
+      workflow runs in.
+    required: false
+    default: ""
+  token:
+    description: >-
+      GitHub token used for API calls. Needs "issues: write" for sync and
+      "issues: read" for plan. Use a PAT or GitHub App token to target other
+      repositories.
+    required: false
+    default: ${{ github.token }}
+  config:
+    description: >-
+      Path to the label config file (JSON/YAML). Defaults to convention
+      files: .gh-labeler.json/.yaml/.yml, .github/labels.json/.yaml/.yml.
+    required: false
+    default: ""
+  from:
+    description: >-
+      Load the label config from another repository (owner/repo[:path]).
+      Mutually exclusive with "config".
+    required: false
+    default: ""
+  prune:
+    description: >-
+      "true" deletes repository labels not declared in the config, "false"
+      keeps them even when the config sets "prune: true". Empty follows the
+      config file.
+    required: false
+    default: ""
+  similarity:
+    description: >-
+      Set "false" to disable similarity-based rename detection for fully
+      deterministic runs. Alias matching always applies.
+    required: false
+    default: "true"
+  dry-run:
+    description: 'sync only: plan without applying any changes.'
+    required: false
+    default: "false"
+  check:
+    description: >-
+      plan only: fail with exit code 6 when changes are pending (CI drift
+      detection).
+    required: false
+    default: "false"
+  gh-labeler-version:
+    description: >-
+      npm version of gh-labeler to run (e.g. "1.0.0"). Defaults to latest.
+    required: false
+    default: latest
+  working-directory:
+    description: >-
+      Directory to run in. Convention config files and relative "config"
+      paths are resolved from here.
+    required: false
+    default: "."
+
+outputs:
+  status:
+    description: 'Result status: success, no_changes, partial_failure, or error.'
+    value: ${{ steps.run.outputs.status }}
+  exit-code:
+    description: >-
+      gh-labeler exit code: 0 success · 1 general error · 2 config error ·
+      3 auth error · 4 repo not found · 5 partial failure · 6 drift.
+    value: ${{ steps.run.outputs.exit-code }}
+  created:
+    description: Number of labels created (empty for validate).
+    value: ${{ steps.run.outputs.created }}
+  updated:
+    description: Number of labels updated (empty for validate).
+    value: ${{ steps.run.outputs.updated }}
+  renamed:
+    description: Number of labels renamed (empty for validate).
+    value: ${{ steps.run.outputs.renamed }}
+  deleted:
+    description: Number of labels deleted (empty for validate).
+    value: ${{ steps.run.outputs.deleted }}
+  kept:
+    description: Number of labels already in sync (empty for validate).
+    value: ${{ steps.run.outputs.kept }}
+  idempotent:
+    description: >-
+      "true" when the run made no changes because everything already matched
+      (empty for plan/validate).
+    value: ${{ steps.run.outputs.idempotent }}
+  json:
+    description: >-
+      Full machine-readable JSON envelope (single line). Parse with
+      fromJSON() for fields not exposed as dedicated outputs.
+    value: ${{ steps.run.outputs.json }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check Node.js Version
+      id: node
+      shell: bash
+      run: |
+        if command -v node >/dev/null 2>&1 && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then
+          echo "setup=false" >>"$GITHUB_OUTPUT"
+        else
+          echo "setup=true" >>"$GITHUB_OUTPUT"
+        fi
+
+    - name: Setup Node.js
+      if: steps.node.outputs.setup == 'true'
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 24
+
+    - name: Run gh-labeler
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        GHL_COMMAND: ${{ inputs.command }}
+        GHL_REPOSITORY: ${{ inputs.repository }}
+        GHL_CONFIG: ${{ inputs.config }}
+        GHL_FROM: ${{ inputs.from }}
+        GHL_PRUNE: ${{ inputs.prune }}
+        GHL_SIMILARITY: ${{ inputs.similarity }}
+        GHL_DRY_RUN: ${{ inputs.dry-run }}
+        GHL_CHECK: ${{ inputs.check }}
+        GHL_VERSION: ${{ inputs.gh-labeler-version }}
+      run: bash "${GITHUB_ACTION_PATH}/run.sh"
