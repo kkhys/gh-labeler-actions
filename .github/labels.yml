@@ -1,2 +1,7 @@
-- name: "type: bump-version"
-  color: "#f4e2e4"
+# Inherits the shared base label set (Conventional Commits types,
+# type: bump-version, skip-ci):
+# https://github.com/kkhys/.github/blob/main/.github/labels.yml
+extends: kkhys/.github
+
+# No repository-specific labels
+labels: []

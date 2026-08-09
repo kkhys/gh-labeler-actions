@@ -3,7 +3,13 @@ name: Sync Labels
 on:
   push:
     branches: [main]
-    paths: [.github/labels.yml]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/sync-labels.yml
+  # Pick up changes to the shared base config (kkhys/.github), which
+  # cannot trigger this workflow on its own.
+  schedule:
+    - cron: "0 18 * * 0" # Mondays 03:00 JST
   workflow_dispatch:
 
 permissions:
@@ -18,5 +24,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Dogfood the action from the checked-out working tree instead of a
+      # pinned release.
       - name: Sync Labels
         uses: ./
+        with:
+          # Mirror the config exactly, matching the previous
+          # github-label-sync behavior of deleting undeclared labels.
+          prune: true
