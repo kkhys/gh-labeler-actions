@@ -110,3 +110,9 @@ http-client.private.env.json
 Network Trash Folder
 Temporary Items
 .apdisk
+
+### Project-specific
+
+# IDE project files are per-developer; the gibo section above only covers
+# a subset of .idea, so ignore the directory outright.
+.idea/
