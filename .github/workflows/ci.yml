@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: ShellCheck
+        run: shellcheck run.sh
+
+  self-test:
+    name: Self Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      issues: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Fixture Config
+        id: validate
+        uses: ./
+        with:
+          command: validate
+          config: tests/fixtures/labels.yml
+
+      - name: Plan Against This Repository
+        id: plan
+        uses: ./
+        with:
+          command: plan
+          config: tests/fixtures/labels.yml
+
+      - name: Sync Dry Run
+        id: dry-run
+        uses: ./
+        with:
+          command: sync
+          config: tests/fixtures/labels.yml
+          dry-run: true
+
+      # The fixture label intentionally never exists on this repository, so
+      # drift detection must always fail with exit code 6.
+      - name: Plan Drift Check (Expected Failure)
+        id: drift
+        continue-on-error: true
+        uses: ./
+        with:
+          command: plan
+          config: tests/fixtures/labels.yml
+          check: true
+
+      - name: Invalid Command (Expected Failure)
+        id: invalid
+        continue-on-error: true
+        uses: ./
+        with:
+          command: destroy
+
+      - name: Assert Outputs
+        shell: bash
+        env:
+          VALIDATE_STATUS: ${{ steps.validate.outputs.status }}
+          VALIDATE_EXIT: ${{ steps.validate.outputs.exit-code }}
+          VALIDATE_JSON: ${{ steps.validate.outputs.json }}
+          PLAN_STATUS: ${{ steps.plan.outputs.status }}
+          PLAN_EXIT: ${{ steps.plan.outputs.exit-code }}
+          PLAN_CREATED: ${{ steps.plan.outputs.created }}
+          PLAN_JSON: ${{ steps.plan.outputs.json }}
+          DRY_RUN_JSON: ${{ steps.dry-run.outputs.json }}
+          DRIFT_OUTCOME: ${{ steps.drift.outcome }}
+          DRIFT_EXIT: ${{ steps.drift.outputs.exit-code }}
+          INVALID_OUTCOME: ${{ steps.invalid.outcome }}
+        run: |
+          set -euxo pipefail
+
+          test "$VALIDATE_STATUS" = "success"
+          test "$VALIDATE_EXIT" = "0"
+          jq -e '.schema_version == 2 and .command == "validate" and .label_count == 1' <<<"$VALIDATE_JSON"
+
+          test "$PLAN_STATUS" = "success"
+          test "$PLAN_EXIT" = "0"
+          test "$PLAN_CREATED" = "1"
+          jq -e '.schema_version == 2 and .command == "plan" and .dry_run == true' <<<"$PLAN_JSON"
+
+          jq -e '.command == "sync" and .dry_run == true' <<<"$DRY_RUN_JSON"
+
+          test "$DRIFT_OUTCOME" = "failure"
+          test "$DRIFT_EXIT" = "6"
+
+          test "$INVALID_OUTCOME" = "failure"

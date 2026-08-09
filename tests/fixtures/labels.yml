@@ -1,0 +1,10 @@
+# $schema: https://raw.githubusercontent.com/kkhys/gh-labeler/main/schema/labels.schema.json
+#
+# CI fixture for the self-test workflow. The label below is intentionally not
+# declared in .github/labels.yml and must never exist on this repository, so
+# `plan` always reports exactly one create and `plan --check` always detects
+# drift (exit code 6).
+labels:
+  - name: "test: fixture"
+    color: "#0e8a16"
+    description: Fixture label used by gh-labeler-actions self-tests
