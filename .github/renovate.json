@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":prHourlyLimitNone",
+    ":timezone(Asia/Tokyo)",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "schedule": ["after 1am and before 6am"],
+  "dependencyDashboard": true,
+  "assignees": ["kkhys"],
+  "labels": ["type: bump-version"],
+  "assignAutomerge": true,
+  "minimumReleaseAge": "3 days"
+}
